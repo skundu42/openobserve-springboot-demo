@@ -1,0 +1,64 @@
+name: openobserve-springboot-demo
+
+x-otel-environment: &otel-environment
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://openobserve:5080/api/default
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+  OTEL_EXPORTER_OTLP_HEADERS: "Authorization=Basic ${OPENOBSERVE_AUTH_TOKEN:?Run ./scripts/bootstrap-env.sh first}"
+  OTEL_EXPORTER_OTLP_LOGS_HEADERS: "Authorization=Basic ${OPENOBSERVE_AUTH_TOKEN:?Run ./scripts/bootstrap-env.sh first},stream-name=springboot_logs"
+  OTEL_TRACES_EXPORTER: otlp
+  OTEL_LOGS_EXPORTER: otlp
+  OTEL_METRICS_EXPORTER: none
+  OTEL_TRACES_SAMPLER: always_on
+  OTEL_INSTRUMENTATION_LOGBACK_APPENDER_EXPERIMENTAL_CAPTURE_MDC_ATTRIBUTES: "*"
+  OTEL_BSP_SCHEDULE_DELAY: "1000"
+  OTEL_BLRP_SCHEDULE_DELAY: "1000"
+
+services:
+  openobserve:
+    image: public.ecr.aws/zinclabs/openobserve:v0.91.3
+    environment:
+      ZO_DATA_DIR: /data
+      ZO_ROOT_USER_EMAIL: "${OPENOBSERVE_EMAIL:?Run ./scripts/bootstrap-env.sh first}"
+      ZO_ROOT_USER_PASSWORD: "${OPENOBSERVE_PASSWORD:?Run ./scripts/bootstrap-env.sh first}"
+    ports:
+      - "5080:5080"
+    volumes:
+      - openobserve-data:/data
+    restart: unless-stopped
+
+  inventory-service:
+    build:
+      context: .
+      args:
+        SERVICE: inventory-service
+    environment:
+      <<: *otel-environment
+      SERVER_PORT: "8081"
+      OTEL_SERVICE_NAME: inventory-service
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=local,service.version=1.0.0
+    depends_on:
+      - openobserve
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+
+  order-service:
+    build:
+      context: .
+      args:
+        SERVICE: order-service
+    environment:
+      <<: *otel-environment
+      SERVER_PORT: "8080"
+      INVENTORY_BASE_URL: http://inventory-service:8081
+      OTEL_SERVICE_NAME: order-service
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=local,service.version=1.0.0
+    depends_on:
+      - openobserve
+      - inventory-service
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  openobserve-data:

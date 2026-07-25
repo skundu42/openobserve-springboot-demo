@@ -1,0 +1,5 @@
+rootProject.name = 'openobserve-springboot-demo'
+
+include 'inventory-service'
+include 'order-service'
+

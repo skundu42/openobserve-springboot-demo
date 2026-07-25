@@ -1,0 +1,7 @@
+.env
+.git
+.gradle
+**/build
+docs
+tmp
+/presentation
